@@ -122,8 +122,8 @@ app.get('/api/details', async (req, res) => {
                 console.error('Metadata fetch error for', doc.identifier);
             }
         }
-        // Fallback to indexing sites if wide-internet scan yields zero results
-        if (links.length === 0) {
+        // Always attempt to find better/dubbed versions on Bollyflix
+        if (links.length < 10) {
             try {
                 // Determine if it's likely a Hollywood movie by checking common metadata or just adding a "Hindi" search variation anyway
                 const searchTerms = [
@@ -215,8 +215,8 @@ app.get('/api/details', async (req, res) => {
             }
         }
 
-        // 3. Last Ditch: Global "Index Of" Search via DuckDuckGo
-        if (links.length === 0) {
+        // Final attempts at global indexes if we still don't have enough links
+        if (links.length < 5) {
             try {
                 const ddgQuery = `index of ${cleanTitle} mkv mp4`;
                 const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(ddgQuery)}`;
