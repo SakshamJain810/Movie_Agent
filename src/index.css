@@ -479,6 +479,26 @@ input {
   font-size: 0.75rem;
 }
 
+.download-tip {
+  margin-top: 2rem;
+  padding: 1.25rem;
+  background: rgba(245, 158, 11, 0.05);
+  border-left: 4px solid var(--accent);
+  border-radius: 4px;
+}
+
+.download-tip p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.download-tip strong {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 /* Spinner */
 .spinner {
   animation: spin 1s linear infinite;

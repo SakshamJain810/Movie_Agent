@@ -13,10 +13,10 @@ interface MovieDetails {
   title: string;
   poster: string;
   description: string;
-  links: { text: string; url: string }[];
+  links: { text: string; url: string; proxyUrl?: string }[];
 }
 
-const API_BASE = 'http://localhost:3001/api';
+const API_BASE = '/api';
 
 const App: React.FC = () => {
   const [query, setQuery] = useState('');
@@ -184,21 +184,34 @@ const App: React.FC = () => {
                     <div className="links-section">
                       <h4 className="links-label">DOWNLOAD LINKS</h4>
                       <div className="links-list">
-                        {selectedMovie.links.map((link, i) => (
-                          <a 
-                            key={i}
-                            href={link.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="link-item"
-                          >
-                            <span className="link-text">{link.text}</span>
-                            <div className="link-meta">
-                              <span className="link-hint">Direct Link</span>
-                              <ExternalLink className="icon-xs" />
-                            </div>
-                          </a>
-                        ))}
+                        {selectedMovie.links.map((link, i) => {
+                          const isDirect = !!link.proxyUrl;
+                          // Extract extension from URL, handling potential query params
+                          const urlForExt = link.proxyUrl ? decodeURIComponent(link.proxyUrl.split('url=')[1].split('&')[0]) : link.url;
+                          const extension = urlForExt.split('.').pop()?.toLowerCase() || 'mp4';
+                          const cleanExt = ['mp4', 'mkv', 'mp3', 'avi'].includes(extension) ? extension : 'mp4';
+                          const suggestedName = `${selectedMovie.title.replace(/[^a-z0-9]/gi, '_')}.${cleanExt}`;
+                          
+                          return (
+                            <a 
+                              key={i}
+                              href={link.proxyUrl || link.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="link-item"
+                              download={suggestedName}
+                              title={`Download ${suggestedName} directly`}
+                            >
+                              <span className="link-text">{link.text}</span>
+                              <div className="link-meta">
+                                <span className="link-hint">
+                                  {isDirect ? 'Direct Playable' : 'External Redirect'}
+                                </span>
+                                <ExternalLink className="icon-xs" />
+                              </div>
+                            </a>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

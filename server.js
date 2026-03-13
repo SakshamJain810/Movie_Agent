@@ -75,7 +75,7 @@ app.get('/api/details', async (req, res) => {
         const cleanTitle = title.replace(/[^a-zA-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
         const queries = [
             `title:(${encodeURIComponent(title)})+AND+mediatype:movies`,
-            `(${encodeURIComponent(cleanTitle)})+AND+mediatype:movies`
+            `q=(${encodeURIComponent(cleanTitle)})` // Broad search across all types
         ];
 
         let docs = [];
@@ -98,12 +98,15 @@ app.get('/api/details', async (req, res) => {
                 const files = metaData.files || [];
                 
                 // Find MP4 or MKV videos
-                const videoFile = files.find(f => f.name.endsWith('.mp4') || f.name.endsWith('.mkv'));
+                const videoFile = files.find(f => f.name.toLowerCase().endsWith('.mp4') || f.name.toLowerCase().endsWith('.mkv'));
                 
                 if (videoFile) {
+                    const extension = videoFile.name.split('.').pop();
+                    const cleanName = `${title.replace(/[^a-zA-Z0-9 ]/g, '')}.${extension}`;
                     links.push({
                         text: `${doc.title} (${(videoFile.size / 1024 / 1024).toFixed(1)} MB)`,
-                        url: `${ARCHIVE_URL}/download/${doc.identifier}/${encodeURIComponent(videoFile.name)}`
+                        url: `${ARCHIVE_URL}/download/${doc.identifier}/${encodeURIComponent(videoFile.name)}`,
+                        proxyUrl: `/api/download?url=${encodeURIComponent(`${ARCHIVE_URL}/download/${doc.identifier}/${videoFile.name}`)}&name=${encodeURIComponent(cleanName)}`
                     });
                 }
             } catch (err) {
@@ -111,13 +114,14 @@ app.get('/api/details', async (req, res) => {
                 console.error('Metadata fetch error for', doc.identifier);
             }
         }
+        // Fallback to indexing sites if wide-internet scan yields zero results
         if (links.length === 0) {
             try {
                 // Escalating search terms for Bollyflix
                 const searchTerms = [
                     title,
                     cleanTitle,
-                    cleanTitle.split(' ').slice(0, 2).join(' ') // e.g. "Sachin A" or "Sachin Billion"
+                    cleanTitle.split(' ').slice(0, 2).join(' ') 
                 ];
 
                 for (const term of searchTerms) {
@@ -133,8 +137,12 @@ app.get('/api/details', async (req, res) => {
                         const resultTitle = linkEl.text().trim().toLowerCase();
                         const searchTitle = title.toLowerCase();
                         
-                        // Check for significant overlap
-                        if (resultTitle.includes(searchTitle) || searchTitle.includes(resultTitle)) {
+                        // Smart fuzzy matching: check if many words overlap
+                        const searchWords = searchTitle.split(/\s+/).filter(w => w.length > 2);
+                        const resultWords = resultTitle.split(/\s+/).filter(w => w.length > 2);
+                        const overlap = searchWords.filter(w => resultWords.includes(w));
+                        
+                        if ((searchWords.length > 0 && overlap.length >= searchWords.length * 0.6) || resultTitle.includes(searchTitle) || searchTitle.includes(resultTitle)) {
                             bestMatchLink = linkEl.attr('href');
                             return false; // break
                         }
@@ -164,7 +172,7 @@ app.get('/api/details', async (req, res) => {
         // 3. Last Ditch: Global "Index Of" Search via DuckDuckGo
         if (links.length === 0) {
             try {
-                const ddgQuery = `intitle:"index of" "${cleanTitle}" mkv OR mp4`;
+                const ddgQuery = `index of ${cleanTitle} mkv mp4`;
                 const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(ddgQuery)}`;
                 const { data: ddgData } = await axios.get(ddgUrl, { headers: HEADERS });
                 const $ = cheerio.load(ddgData);
@@ -183,11 +191,14 @@ app.get('/api/details', async (req, res) => {
                         $site('a').each((i, el) => {
                             const href = $site(el).attr('href');
                             const text = $site(el).text().trim();
-                            if (href && (href.endsWith('.mp4') || href.endsWith('.mkv'))) {
+                            if (href && (href.endsWith('.mp4') || href.endsWith('.mkv') || href.endsWith('.mp3'))) {
                                 const absoluteUrl = new URL(href, siteUrl).href;
+                                const extension = href.split('.').pop();
+                                const cleanName = `${title.replace(/[^a-zA-Z0-9 ]/g, '')}.${extension}`;
                                 links.push({
                                     text: `[Global Index] ${text || href.split('/').pop()}`,
-                                    url: absoluteUrl
+                                    url: absoluteUrl,
+                                    proxyUrl: `/api/download?url=${encodeURIComponent(absoluteUrl)}&name=${encodeURIComponent(cleanName)}`
                                 });
                             }
                         });
@@ -219,6 +230,39 @@ app.get('/api/details', async (req, res) => {
     } catch (error) {
         console.error('Details error:', error);
         res.status(500).json({ error: 'Failed to fetch movie details' });
+    }
+});
+
+app.get('/api/download', async (req, res) => {
+    const { url, name } = req.query;
+    if (!url || !name) return res.status(400).send('URL and name are required');
+
+    console.log(`[Proxy] Downloading: ${name} from ${url}`);
+
+    try {
+        const response = await axios({
+            method: 'get',
+            url: url,
+            responseType: 'stream',
+            headers: { 'User-Agent': HEADERS['User-Agent'] },
+            timeout: 10000
+        });
+
+        // Simplify header for max compatibility
+        const filename = name.toString().replace(/[^a-zA-Z0-9. _-]/g, '_');
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        
+        if (response.headers['content-length']) {
+            res.setHeader('Content-Length', response.headers['content-length']);
+        }
+        
+        res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+        
+        response.data.pipe(res);
+    } catch (error) {
+        console.error('Download proxy error:', error.message);
+        res.status(500).send(`Failed to proxy download: ${error.message}`);
     }
 });
 
