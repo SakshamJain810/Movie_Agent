@@ -97,14 +97,22 @@ app.get('/api/details', async (req, res) => {
                 const { data: metaData } = await axios.get(metadataUrl);
                 const files = metaData.files || [];
                 
-                // Find MP4 or MKV videos
-                const videoFile = files.find(f => f.name.toLowerCase().endsWith('.mp4') || f.name.toLowerCase().endsWith('.mkv'));
+                // Find MP4 or MKV videos, excluding small files (likely extras/samples) and specific noise keywords
+                const noiseKeywords = ['sample', 'trailer', 'teaser', 'promo', 'lyrics', 'song', 'template', 'capcut'];
+                const videoFile = files.find(f => {
+                    const name = f.name.toLowerCase();
+                    const sizeMB = (f.size || 0) / 1024 / 1024;
+                    const isVideo = name.endsWith('.mp4') || name.endsWith('.mkv');
+                    const isNotNoise = !noiseKeywords.some(k => name.includes(k));
+                    const isMinSize = sizeMB > 50; // Movies/Episodes are usually > 50MB
+                    return isVideo && isNotNoise && isMinSize;
+                });
                 
                 if (videoFile) {
                     const extension = videoFile.name.split('.').pop();
                     const cleanName = `${title.replace(/[^a-zA-Z0-9 ]/g, '')}.${extension}`;
                     links.push({
-                        text: `${doc.title} (${(videoFile.size / 1024 / 1024).toFixed(1)} MB)`,
+                        text: `${doc.title} (${((videoFile.size || 0) / 1024 / 1024).toFixed(1)} MB)`,
                         url: `${ARCHIVE_URL}/download/${doc.identifier}/${encodeURIComponent(videoFile.name)}`,
                         proxyUrl: `/api/download?url=${encodeURIComponent(`${ARCHIVE_URL}/download/${doc.identifier}/${videoFile.name}`)}&name=${encodeURIComponent(cleanName)}`
                     });
@@ -152,11 +160,14 @@ app.get('/api/details', async (req, res) => {
                         const { data: pageData } = await axios.get(bestMatchLink, { headers: HEADERS });
                         $ = cheerio.load(pageData);
                         
+                        const noiseKeywords = ['sample', 'trailer', 'teaser', 'promo', 'lyrics', 'song', 'template', 'capcut'];
                         $('a.maxbutton-1, a.maxbutton-2, a.maxbutton, .maxbutton, a.dl, a.dls').each((i, el) => {
                             const text = $(el).text().trim();
                             const href = $(el).attr('href');
+                            const lowerText = text.toLowerCase();
+                            const isNotNoise = !noiseKeywords.some(k => lowerText.includes(k));
                             
-                            if (href && (text.includes('Download') || text.includes('Google Drive') || text.includes('G-Direct') || text.toLowerCase().includes('download'))) {
+                            if (href && isNotNoise && (text.includes('Download') || text.includes('Google Drive') || text.includes('G-Direct') || lowerText.includes('download'))) {
                                 links.push({ text: `[Fallback Link] ${text}`, url: href });
                             }
                         });
@@ -184,22 +195,27 @@ app.get('/api/details', async (req, res) => {
                     }
                 });
 
+                const noiseKeywords = ['sample', 'trailer', 'teaser', 'promo', 'lyrics', 'song', 'template', 'capcut'];
                 for (const siteUrl of searchResults) {
                     try {
                         const { data: siteData } = await axios.get(siteUrl, { headers: HEADERS, timeout: 5000 });
                         const $site = cheerio.load(siteData);
                         $site('a').each((i, el) => {
                             const href = $site(el).attr('href');
-                            const text = $site(el).text().trim();
-                            if (href && (href.endsWith('.mp4') || href.endsWith('.mkv') || href.endsWith('.mp3'))) {
-                                const absoluteUrl = new URL(href, siteUrl).href;
-                                const extension = href.split('.').pop();
-                                const cleanName = `${title.replace(/[^a-zA-Z0-9 ]/g, '')}.${extension}`;
-                                links.push({
-                                    text: `[Global Index] ${text || href.split('/').pop()}`,
-                                    url: absoluteUrl,
-                                    proxyUrl: `/api/download?url=${encodeURIComponent(absoluteUrl)}&name=${encodeURIComponent(cleanName)}`
-                                });
+                            let text = $site(el).text().trim();
+                            if (href && (href.endsWith('.mp4') || href.endsWith('.mkv'))) {
+                                const lowerHref = href.toLowerCase();
+                                const isNotNoise = !noiseKeywords.some(k => lowerHref.includes(k));
+                                if (isNotNoise) {
+                                    const absoluteUrl = new URL(href, siteUrl).href;
+                                    const extension = href.split('.').pop();
+                                    const cleanName = `${title.replace(/[^a-zA-Z0-9 ]/g, '')}.${extension}`;
+                                    links.push({
+                                        text: `[Global Index] ${text || href.split('/').pop()}`,
+                                        url: absoluteUrl,
+                                        proxyUrl: `/api/download?url=${encodeURIComponent(absoluteUrl)}&name=${encodeURIComponent(cleanName)}`
+                                    });
+                                }
                             }
                         });
                         if (links.length >= 5) break;
@@ -237,32 +253,32 @@ app.get('/api/download', async (req, res) => {
     const { url, name } = req.query;
     if (!url || !name) return res.status(400).send('URL and name are required');
 
-    console.log(`[Proxy] Downloading: ${name} from ${url}`);
+    console.log(`[Proxy] Requesting: ${name}`);
 
     try {
         const response = await axios({
             method: 'get',
-            url: url,
+            url: decodeURIComponent(url.toString()),
             responseType: 'stream',
             headers: { 'User-Agent': HEADERS['User-Agent'] },
-            timeout: 10000
+            timeout: 15000
         });
 
-        // Simplify header for max compatibility
-        const filename = name.toString().replace(/[^a-zA-Z0-9. _-]/g, '_');
+        const safeName = name.toString().replace(/[^a-zA-Z0-9. _-]/g, '_');
+        
+        // Force the browser to treat this as a download with the specific name
+        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
         res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         
         if (response.headers['content-length']) {
             res.setHeader('Content-Length', response.headers['content-length']);
         }
-        
-        res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
-        
+
         response.data.pipe(res);
     } catch (error) {
         console.error('Download proxy error:', error.message);
-        res.status(500).send(`Failed to proxy download: ${error.message}`);
+        res.status(500).send('Download failed: ' + error.message);
     }
 });
 

@@ -196,7 +196,6 @@ const App: React.FC = () => {
                             <a 
                               key={i}
                               href={link.proxyUrl || link.url}
-                              target="_blank"
                               rel="noopener noreferrer"
                               className="link-item"
                               download={suggestedName}
