@@ -125,9 +125,10 @@ app.get('/api/details', async (req, res) => {
         // Fallback to indexing sites if wide-internet scan yields zero results
         if (links.length === 0) {
             try {
-                // Escalating search terms for Bollyflix
+                // Determine if it's likely a Hollywood movie by checking common metadata or just adding a "Hindi" search variation anyway
                 const searchTerms = [
                     title,
+                    `${cleanTitle} Hindi`, // Specific search for dubbed versions
                     cleanTitle,
                     cleanTitle.split(' ').slice(0, 2).join(' ') 
                 ];
@@ -135,6 +136,7 @@ app.get('/api/details', async (req, res) => {
                 for (const term of searchTerms) {
                     if (!term || term.length < 3) continue;
                     
+                    console.log(`[Bollyflix] Searching for: ${term}`);
                     const searchUrl = `${BOLLYFLIX_URL}/?s=${encodeURIComponent(term)}`;
                     const { data: bfData } = await axios.get(searchUrl, { headers: HEADERS });
                     let $ = cheerio.load(bfData);
@@ -161,16 +163,49 @@ app.get('/api/details', async (req, res) => {
                         $ = cheerio.load(pageData);
                         
                         const noiseKeywords = ['sample', 'trailer', 'teaser', 'promo', 'lyrics', 'song', 'template', 'capcut'];
-                        $('a.maxbutton-1, a.maxbutton-2, a.maxbutton, .maxbutton, a.dl, a.dls').each((i, el) => {
-                            const text = $(el).text().trim();
-                            const href = $(el).attr('href');
-                            const lowerText = text.toLowerCase();
-                            const isNotNoise = !noiseKeywords.some(k => lowerText.includes(k));
-                            
-                            if (href && isNotNoise && (text.includes('Download') || text.includes('Google Drive') || text.includes('G-Direct') || lowerText.includes('download'))) {
-                                links.push({ text: `[Fallback Link] ${text}`, url: href });
+                        
+                        // Bollyflix specific: Find blocks of downloads which usually have a heading containing resolution/audio
+                        $('p, h3, h4').each((i, el) => {
+                            const headerText = $(el).text().trim();
+                            if (headerText.toLowerCase().includes('download') && (headerText.includes('p') || headerText.includes('Audio'))) {
+                                // Find the buttons immediately following this header
+                                let nextEl = $(el).next();
+                                // Sometimes there's an empty p or br
+                                while (nextEl.length && !nextEl.find('a').length && nextEl.is('p, br, div')) {
+                                    nextEl = nextEl.next();
+                                }
+                                
+                                nextEl.find('a').each((j, btn) => {
+                                    const text = $(btn).text().trim();
+                                    const href = $(btn).attr('href');
+                                    const lowerText = text.toLowerCase();
+                                    const isNotNoise = !noiseKeywords.some(k => lowerText.includes(k));
+                                    
+                                    if (href && isNotNoise && (text.includes('Drive') || text.includes('Link') || text.includes('Download') || lowerText.includes('g-direct') || lowerText.includes('high speed'))) {
+                                        // Combine the header text with button text for clarity (e.g., "720p Hindi-English - Google Drive")
+                                        const cleanHeader = headerText.replace(/Download/gi, '').trim();
+                                        links.push({ 
+                                            text: `[Bollyflix] ${cleanHeader} - ${text}`, 
+                                            url: href 
+                                        });
+                                    }
+                                });
                             }
                         });
+
+                        // Fallback to old method if no structured blocks found
+                        if (links.length === 0) {
+                            $('a.maxbutton-1, a.maxbutton-2, a.maxbutton, .maxbutton, a.dl, a.dls').each((i, el) => {
+                                const text = $(el).text().trim();
+                                const href = $(el).attr('href');
+                                const lowerText = text.toLowerCase();
+                                const isNotNoise = !noiseKeywords.some(k => lowerText.includes(k));
+                                
+                                if (href && isNotNoise && (text.includes('Download') || text.includes('Google Drive') || text.includes('G-Direct') || lowerText.includes('download'))) {
+                                    links.push({ text: `[Fallback Link] ${text}`, url: href });
+                                }
+                            });
+                        }
                         
                         if (links.length > 0) break;
                     }
