@@ -1,73 +1,56 @@
-# React + TypeScript + Vite
+# 🎬 MovieAgent
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> **A premium web application that searches the wide internet and open archives for safe, ad-free, direct movie and TV show download links.**
 
-Currently, two official plugins are available:
+![MovieAgent Screenshot](https://raw.githubusercontent.com/SakshamJain810/Movie_Agent/main/src/assets/hero.png)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🌟 Overview
 
-## React Compiler
+MovieAgent completely redesigns the experience of finding and downloading movies. Instead of depending on ad-ridden proxy sites or complex bit-torrent swarms, MovieAgent acts as an intelligent scraper. It leverages the global **IMDb Suggestion API** for accurate Hollywood-grade search results, and scours the open **Internet Archive (archive.org)** for safe, secure, and direct `.mp4` and `.mkv` downloads.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Why MovieAgent?
+- **🎯 100% Free & Direct**: Links map directly to the actual video files. No redirects. No countdown timers. No "prove you are human" gauntlets.
+- **🛡️ Safe Downloading**: Bypasses spammy download button traps. 
+- **✨ Cinematic UI**: A beautiful, minimalist Dark Mode interface built in React.
+- **🚀 Ultra-Fast Extraction**: Node.js backend intelligently parses metadata arrays in real-time.
 
-## Expanding the ESLint configuration
+## 🛠️ Technology Stack
+* **Frontend:** React + Vite, TypeScript, Framer Motion (for smooth animations), Lucide React (Icons), Vanilla CSS for custom granular design.
+* **Backend:** Node.js, Express.
+* **Data Retrieval:** Axios, Cheerio.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🚀 Getting Started
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Prerequisites
+Make sure you have Node.js and npm installed on your machine.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Installation
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/SakshamJain810/Movie_Agent.git
+   cd Movie_Agent
+   ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+3. **Start the Backend Server**
+   (Open a terminal and run this command)
+   ```bash
+   node server.js
+   ```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+4. **Start the Frontend Application**
+   (Open a second terminal in the same directory and run this command)
+   ```bash
+   npm run dev
+   ```
+
+5. **Open in Browser**
+   Navigate to `http://localhost:5173` to start using your agent!
+
+---
+*Created by [SakshamJain810](https://github.com/SakshamJain810)* 🚀
